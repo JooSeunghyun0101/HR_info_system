@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run dev:*)",
+      "WebFetch(domain:antigravity.google)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

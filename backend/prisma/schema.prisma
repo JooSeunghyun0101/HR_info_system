@@ -1,0 +1,202 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                String    @id @default(uuid())
+  email             String    @unique
+  password_hash     String
+  full_name         String
+  role              String    @default("viewer") // viewer, hr_staff, admin
+  is_active         Boolean   @default(true)
+  email_verified    Boolean   @default(false)
+  invite_token      String?   @unique
+  invite_expires_at DateTime?
+  created_at        DateTime  @default(now())
+  updated_at        DateTime  @updatedAt
+  last_login        DateTime?
+  password_changed_at DateTime?
+
+  qna_created       QnAEntry[] @relation("QnACreatedBy")
+  qna_updated       QnAEntry[] @relation("QnAUpdatedBy")
+  qna_deleted       QnAEntry[] @relation("QnADeletedBy")
+  manuals_created   Manual[]   @relation("ManualCreatedBy")
+  manuals_updated   Manual[]   @relation("ManualUpdatedBy")
+  manuals_deleted   Manual[]   @relation("ManualDeletedBy")
+  manual_versions   ManualVersion[]
+  attachments       Attachment[]
+  audit_logs        AuditLog[]
+
+  @@map("users")
+}
+
+model Category {
+  id            String    @id @default(uuid())
+  name          String    @unique
+  description   String?
+  color         String?
+  display_order Int?
+  is_active     Boolean   @default(true)
+  created_at    DateTime  @default(now())
+
+  qna_entries   QnACategory[]
+
+  @@map("categories")
+}
+
+model Tag {
+  id          String    @id @default(uuid())
+  name        String    @unique
+  usage_count Int       @default(0)
+  created_at  DateTime  @default(now())
+
+  qna_entries QnATag[]
+
+  @@map("tags")
+}
+
+model QnAEntry {
+  id               String    @id @default(uuid())
+  question_title   String
+  question_details String
+  answer           String
+  answer_basis     String?
+  created_by_id    String
+  created_at       DateTime  @default(now())
+  updated_at       DateTime  @updatedAt
+  view_count       Int       @default(0)
+  last_viewed_at   DateTime?
+  is_deleted       Boolean   @default(false)
+  deleted_at       DateTime?
+  deleted_by_id    String?
+
+  created_by       User      @relation("QnACreatedBy", fields: [created_by_id], references: [id])
+  updated_by_id    String?
+  updated_by       User?     @relation("QnAUpdatedBy", fields: [updated_by_id], references: [id])
+  deleted_by       User?     @relation("QnADeletedBy", fields: [deleted_by_id], references: [id])
+  
+  categories       QnACategory[]
+  tags             QnATag[]
+  manual_sources   ManualQnASource[]
+  embedding        Unsupported("vector(3072)")?
+
+  @@map("qna_entries")
+}
+
+model QnACategory {
+  qna_id      String
+  category_id String
+  
+  qna         QnAEntry @relation(fields: [qna_id], references: [id], onDelete: Cascade)
+  category    Category @relation(fields: [category_id], references: [id], onDelete: Cascade)
+
+  @@id([qna_id, category_id])
+  @@map("qna_categories")
+}
+
+model QnATag {
+  qna_id String
+  tag_id String
+
+  qna    QnAEntry @relation(fields: [qna_id], references: [id], onDelete: Cascade)
+  tag    Tag      @relation(fields: [tag_id], references: [id], onDelete: Cascade)
+
+  @@id([qna_id, tag_id])
+  @@map("qna_tags")
+}
+
+model Manual {
+  id            String    @id @default(uuid())
+  title         String
+  content       String
+  version_major Int       @default(1)
+  version_minor Int       @default(0)
+  created_by_id String
+  created_at    DateTime  @default(now())
+  updated_by_id String?
+  updated_at    DateTime  @updatedAt
+  is_deleted    Boolean   @default(false)
+  deleted_at    DateTime?
+  deleted_by_id String?
+
+  created_by    User      @relation("ManualCreatedBy", fields: [created_by_id], references: [id])
+  updated_by    User?     @relation("ManualUpdatedBy", fields: [updated_by_id], references: [id])
+  deleted_by    User?     @relation("ManualDeletedBy", fields: [deleted_by_id], references: [id])
+
+  versions      ManualVersion[]
+  qna_sources   ManualQnASource[]
+  embedding     Unsupported("vector(3072)")?
+
+  @@map("manuals")
+}
+
+model ManualVersion {
+  id            String    @id @default(uuid())
+  manual_id     String
+  version_major Int
+  version_minor Int
+  content       String
+  change_type   String    // major, minor
+  change_log    String
+  created_by_id String
+  created_at    DateTime  @default(now())
+
+  manual        Manual    @relation(fields: [manual_id], references: [id], onDelete: Cascade)
+  created_by    User      @relation(fields: [created_by_id], references: [id])
+
+  @@unique([manual_id, version_major, version_minor])
+  @@map("manual_versions")
+}
+
+model ManualQnASource {
+  manual_id String
+  qna_id    String
+  created_at DateTime @default(now())
+
+  manual    Manual   @relation(fields: [manual_id], references: [id], onDelete: Cascade)
+  qna       QnAEntry @relation(fields: [qna_id], references: [id], onDelete: Cascade)
+
+  @@id([manual_id, qna_id])
+  @@map("manual_qna_sources")
+}
+
+model Attachment {
+  id           String   @id @default(uuid())
+  entity_type  String   // manual, qna
+  entity_id    String
+  file_name    String
+  file_type    String
+  file_size    Int
+  storage_path String
+  mime_type    String
+  uploaded_by_id String
+  created_at   DateTime @default(now())
+
+  uploaded_by  User     @relation(fields: [uploaded_by_id], references: [id])
+
+  @@index([entity_type, entity_id])
+  @@map("attachments")
+}
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  user_id     String?
+  action      String
+  entity_type String
+  entity_id   String
+  metadata    String? // JSON string
+  ip_address  String?
+  user_agent  String?
+  created_at  DateTime @default(now())
+
+  user        User?    @relation(fields: [user_id], references: [id])
+
+  @@index([entity_type, entity_id])
+  @@index([user_id, created_at])
+  @@map("audit_logs")
+}
