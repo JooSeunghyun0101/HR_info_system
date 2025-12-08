@@ -116,6 +116,7 @@
     color: var(--color-gold-primary);
     transition: all 0.3s ease;
     cursor: pointer;
+    z-index: 1;
   }
 
   .gold-button::before {

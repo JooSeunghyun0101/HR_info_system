@@ -61,19 +61,26 @@ router.post('/', authenticateToken, requireRole(['hr_staff', 'admin']), async (r
 
 // Get all Q&As (with search & filter)
 router.get('/', authenticateToken, async (req, res) => {
-    const { q, category, tag, page = 1, limit = 20 } = req.query;
+    const { q, category, tag, start_date, end_date, page = 1, limit = 20 } = req.query;
     const skip = (Number(page) - 1) * Number(limit);
 
     try {
         let qnas: any[] = [];
         let total: number = 0;
 
+        // Build filter clause
+        const filterClause: any = { is_deleted: false };
+        if (category) filterClause.categories = { some: { category_id: String(category) } };
+        if (tag) filterClause.tags = { some: { tag: { name: String(tag) } } };
+        if (start_date) filterClause.created_at = { ...filterClause.created_at, gte: new Date(String(start_date)) };
+        if (end_date) filterClause.created_at = { ...filterClause.created_at, lte: new Date(String(end_date)) };
+
         if (q) {
             // Hybrid search: Vector + Keyword
             const embedding = await generateEmbedding(String(q));
             const embeddingStr = `[${embedding.join(',')}]`;
 
-            // 1. Vector search
+            // 1. Vector search (Raw SQL - difficult to apply complex filters safely, so we filter later)
             const vectorQuery = `
                 SELECT id, 1 - (embedding <=> $1::vector) as similarity
                 FROM qna_entries
@@ -86,10 +93,10 @@ router.get('/', authenticateToken, async (req, res) => {
 
             const vectorResults: any[] = await prisma.$queryRawUnsafe(vectorQuery, embeddingStr);
 
-            // 2. Keyword search (for exact matches, typos, language variations)
+            // 2. Keyword search (Apply filters here)
             const keywordResults = await prisma.qnAEntry.findMany({
                 where: {
-                    is_deleted: false,
+                    ...filterClause,
                     OR: [
                         { question_title: { contains: String(q), mode: 'insensitive' } },
                         { question_details: { contains: String(q), mode: 'insensitive' } },
@@ -118,7 +125,22 @@ router.get('/', authenticateToken, async (req, res) => {
             });
 
             // Combined unique IDs with scoring
-            const allIds = Array.from(scoreMap.keys());
+            let allIds = Array.from(scoreMap.keys());
+
+            // Filter allIds against the filterClause to ensure Vector results also respect filters
+            // This is a bit inefficient (N+1) but ensures correctness without complex raw SQL
+            if (category || tag || start_date || end_date) {
+                const validIds = await prisma.qnAEntry.findMany({
+                    where: {
+                        id: { in: allIds },
+                        ...filterClause
+                    },
+                    select: { id: true }
+                });
+                const validIdSet = new Set(validIds.map(v => v.id));
+                allIds = allIds.filter(id => validIdSet.has(id));
+            }
+
             const scoredIds = allIds.map(id => ({
                 id,
                 score: (scoreMap.get(id).vector * 0.7) + (scoreMap.get(id).keyword * 0.3)
@@ -142,15 +164,10 @@ router.get('/', authenticateToken, async (req, res) => {
             total = scoredIds.length;
         } else {
             // Standard filter
-            const where: any = { is_deleted: false };
-
-            if (category) where.categories = { some: { category_id: String(category) } };
-            if (tag) where.tags = { some: { tag: { name: String(tag) } } };
-
             const [count, data] = await prisma.$transaction([
-                prisma.qnAEntry.count({ where }),
+                prisma.qnAEntry.count({ where: filterClause }),
                 prisma.qnAEntry.findMany({
-                    where,
+                    where: filterClause,
                     skip,
                     take: Number(limit),
                     orderBy: { created_at: 'desc' },

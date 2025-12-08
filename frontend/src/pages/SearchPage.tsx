@@ -35,6 +35,12 @@ interface SearchResultManual {
     created_at?: string; // Added field
 }
 
+interface Category {
+    id: string;
+    name: string;
+    color: string;
+}
+
 type SelectedItem =
     | { type: 'qna'; data: SearchResultQnA }
     | { type: 'manual'; data: SearchResultManual };
@@ -49,20 +55,50 @@ const SearchPage: React.FC = () => {
     const [manualResults, setManualResults] = useState<SearchResultManual[]>([]);
     const [loading, setLoading] = useState(false);
 
+    const [categories, setCategories] = useState<Category[]>([]);
+    const [filters, setFilters] = useState({
+        categoryId: '',
+        tag: '',
+        startDate: '',
+        endDate: ''
+    });
+
     const [selectedItem, setSelectedItem] = useState<SelectedItem | null>(null);
+
+    useEffect(() => {
+        fetchCategories();
+    }, []);
 
     useEffect(() => {
         if (query) {
             fetchResults();
         }
-    }, [query]);
+    }, [query]); // Trigger search only when query changes (or we can add filters here if we want auto-search)
+
+    const fetchCategories = async () => {
+        try {
+            const response = await api.get('/categories');
+            setCategories(response.data);
+        } catch (error) {
+            console.error('Failed to fetch categories', error);
+        }
+    };
 
     const fetchResults = async () => {
         setLoading(true);
         try {
+            const params = {
+                q: query,
+                limit: 5,
+                category: filters.categoryId || undefined,
+                tag: filters.tag || undefined,
+                start_date: filters.startDate || undefined,
+                end_date: filters.endDate || undefined
+            };
+
             const [qnaRes, manualRes] = await Promise.all([
-                api.get('/qna', { params: { q: query, limit: 5 } }),
-                api.get('/manuals', { params: { q: query, limit: 5 } })
+                api.get('/qna', { params }),
+                api.get('/manuals', { params })
             ]);
             setQnaResults(qnaRes.data.data);
             setManualResults(manualRes.data.data);
@@ -116,6 +152,53 @@ const SearchPage: React.FC = () => {
                             onChange={(e) => setSearchInput(e.target.value)}
                         />
                     </form>
+
+                    {/* Filters */}
+                    <div style={{ marginTop: '20px', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                        <select
+                            className="terminal-input"
+                            style={{ width: '150px', height: '40px' }}
+                            value={filters.categoryId}
+                            onChange={(e) => setFilters(prev => ({ ...prev, categoryId: e.target.value }))}
+                        >
+                            <option value="">모든 카테고리</option>
+                            {categories.map(cat => (
+                                <option key={cat.id} value={cat.id}>{cat.name}</option>
+                            ))}
+                        </select>
+                        <input
+                            type="text"
+                            className="terminal-input"
+                            style={{ width: '150px', height: '40px' }}
+                            placeholder="태그 입력"
+                            value={filters.tag}
+                            onChange={(e) => setFilters(prev => ({ ...prev, tag: e.target.value }))}
+                        />
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#666' }}>
+                            <input
+                                type="date"
+                                className="terminal-input"
+                                style={{ width: '140px', height: '40px' }}
+                                value={filters.startDate}
+                                onChange={(e) => setFilters(prev => ({ ...prev, startDate: e.target.value }))}
+                            />
+                            <span>~</span>
+                            <input
+                                type="date"
+                                className="terminal-input"
+                                style={{ width: '140px', height: '40px' }}
+                                value={filters.endDate}
+                                onChange={(e) => setFilters(prev => ({ ...prev, endDate: e.target.value }))}
+                            />
+                        </div>
+                        <button
+                            onClick={fetchResults}
+                            className="gold-button"
+                            style={{ height: '40px', padding: '0 20px' }}
+                        >
+                            필터 적용
+                        </button>
+                    </div>
                 </div>
 
                 {loading ? (

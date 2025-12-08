@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../lib/store';
 import api from '../lib/api';
-import { Users, FolderOpen, Tag, BarChart3 } from 'lucide-react';
+import { Users, FolderOpen, Tag, BarChart3, Edit2, Check, Download } from 'lucide-react';
 
 type Tab = 'users' | 'categories' | 'tags' | 'stats';
 
@@ -488,6 +488,20 @@ const TagManagement: React.FC = () => {
         }
     };
 
+    const [editingTag, setEditingTag] = useState<{ id: string, name: string } | null>(null);
+
+    const handleUpdateTag = async () => {
+        if (!editingTag || !editingTag.name.trim()) return;
+        try {
+            await api.patch(`/admin/tags/${editingTag.id}`, { name: editingTag.name });
+            alert('태그가 수정되었습니다.');
+            setEditingTag(null);
+            fetchTags();
+        } catch (error: any) {
+            alert(error.response?.data?.message || '수정에 실패했습니다.');
+        }
+    };
+
     const [mergeSource, setMergeSource] = useState('');
     const [mergeTarget, setMergeTarget] = useState('');
 
@@ -553,7 +567,7 @@ const TagManagement: React.FC = () => {
                         className="gold-button"
                         onClick={handleMerge}
                         disabled={!mergeSource || !mergeTarget}
-                        style={{ opacity: (!mergeSource || !mergeTarget) ? 0.5 : 1 }}
+                        style={{ opacity: (!mergeSource || !mergeTarget) ? 0.5 : 1, position: 'relative', zIndex: 10 }}
                     >
                         통합하기
                     </button>
@@ -567,11 +581,51 @@ const TagManagement: React.FC = () => {
             <div style={{ display: 'grid', gap: '12px' }}>
                 {tags.map(tag => (
                     <div key={tag.id} className="terminal-card" style={{ padding: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div>
-                            <div style={{ fontSize: '16px', fontWeight: '600', color: '#FFF' }}>{tag.name}</div>
-                            <div style={{ fontSize: '12px', color: '#999' }}>사용 횟수: {tag._count.qna_entries}회</div>
-                        </div>
-                        <button onClick={() => handleDelete(tag.id)} style={{ padding: '6px 12px', fontSize: '12px', background: 'rgba(255,0,0,0.1)', border: '1px solid #F00', color: '#F00', borderRadius: '4px', cursor: 'pointer' }}>삭제</button>
+                        {editingTag && editingTag.id === tag.id ? (
+                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flex: 1 }}>
+                                <input
+                                    className="terminal-input"
+                                    value={editingTag.name}
+                                    onChange={(e) => setEditingTag(prev => prev ? { ...prev, name: e.target.value } : null)}
+                                    style={{ padding: '6px 12px', fontSize: '14px', flex: 1, width: 'auto' }}
+                                    autoFocus
+                                />
+                                <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+                                    <button
+                                        className="gold-button"
+                                        onClick={handleUpdateTag}
+                                        style={{ padding: '6px 12px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                    >
+                                        <Check style={{ width: '12px', height: '12px' }} />
+                                        저장
+                                    </button>
+                                    <button
+                                        onClick={() => setEditingTag(null)}
+                                        style={{ padding: '6px 12px', fontSize: '12px', background: 'transparent', border: '1px solid #666', color: '#999', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                    >
+                                        취소
+                                    </button>
+                                </div>
+                            </div>
+                        ) : (
+                            <>
+                                <div>
+                                    <div style={{ fontSize: '16px', fontWeight: '600', color: '#FFF' }}>{tag.name}</div>
+                                    <div style={{ fontSize: '12px', color: '#999' }}>사용 횟수: {tag._count.qna_entries}회</div>
+                                </div>
+                                <div style={{ display: 'flex', gap: '8px' }}>
+                                    <button
+                                        onClick={() => setEditingTag({ id: tag.id, name: tag.name })}
+                                        className="gold-button"
+                                        style={{ padding: '6px 12px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                    >
+                                        <Edit2 style={{ width: '12px', height: '12px' }} />
+                                        수정
+                                    </button>
+                                    <button onClick={() => handleDelete(tag.id)} style={{ padding: '6px 12px', fontSize: '12px', background: 'rgba(255,0,0,0.1)', border: '1px solid #F00', color: '#F00', borderRadius: '4px', cursor: 'pointer' }}>삭제</button>
+                                </div>
+                            </>
+                        )}
                     </div>
                 ))}
             </div>
@@ -632,6 +686,57 @@ const SystemStats: React.FC = () => {
                         ))}
                     </div>
                 )}
+            </div>
+
+            <div className="terminal-card" style={{ padding: '20px', marginTop: '24px' }}>
+                <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#CC8800', marginBottom: '16px' }}>데이터 내보내기</h3>
+                <div style={{ display: 'flex', gap: '16px' }}>
+                    <button
+                        className="gold-button"
+                        onClick={async () => {
+                            try {
+                                const response = await api.get('/admin/export/qna', { responseType: 'blob' });
+                                const url = window.URL.createObjectURL(new Blob([response.data]));
+                                const link = document.createElement('a');
+                                link.href = url;
+                                link.setAttribute('download', 'qna_export.csv');
+                                document.body.appendChild(link);
+                                link.click();
+                                link.remove();
+                            } catch (error) {
+                                alert('다운로드에 실패했습니다.');
+                            }
+                        }}
+                        style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+                    >
+                        <Download style={{ width: '16px', height: '16px' }} />
+                        Q&A 전체 다운로드 (CSV)
+                    </button>
+                    <button
+                        className="gold-button"
+                        onClick={async () => {
+                            try {
+                                const response = await api.get('/admin/export/manuals', { responseType: 'blob' });
+                                const url = window.URL.createObjectURL(new Blob([response.data]));
+                                const link = document.createElement('a');
+                                link.href = url;
+                                link.setAttribute('download', 'manuals_export.csv');
+                                document.body.appendChild(link);
+                                link.click();
+                                link.remove();
+                            } catch (error) {
+                                alert('다운로드에 실패했습니다.');
+                            }
+                        }}
+                        style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+                    >
+                        <Download style={{ width: '16px', height: '16px' }} />
+                        매뉴얼 전체 다운로드 (CSV)
+                    </button>
+                </div>
+                <p style={{ fontSize: '12px', color: '#666', marginTop: '12px' }}>
+                    * 모든 데이터가 CSV 형식으로 다운로드됩니다. 엑셀에서 열람 가능합니다.
+                </p>
             </div>
         </div>
     );

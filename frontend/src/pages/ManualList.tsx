@@ -4,7 +4,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import api from '../lib/api';
-import { Calendar, User, Book, Plus, Search, FileText, Edit2, Trash2 } from 'lucide-react';
+import { Calendar, User, Book, Plus, Search, FileText, Edit2, Trash2, X } from 'lucide-react';
 import { format } from 'date-fns';
 import Modal from '../components/Modal';
 import { useAuthStore } from '../lib/store';
@@ -23,6 +23,17 @@ interface Manual {
     version_minor: number;
     updated_at: string;
     updated_by: { full_name: string };
+    created_at: string;
+    created_by: { full_name: string };
+}
+
+interface ManualVersion {
+    id: string;
+    version_major: number;
+    version_minor: number;
+    change_type: 'major' | 'minor';
+    change_log: string;
+    content: string;
     created_at: string;
     created_by: { full_name: string };
 }
@@ -67,6 +78,16 @@ const ManualList: React.FC = () => {
     const query = searchParams.get('q') || '';
     const [searchInput, setSearchInput] = useState(query);
 
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [selectedManual, setSelectedManual] = useState<Manual | null>(null);
+    const [isEditing, setIsEditing] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [editForm, setEditForm] = useState({ title: '', content: '', change_log: '' });
+    const [newManual, setNewManual] = useState({
+        title: '',
+        content: '',
+    });
+
     const createEditorRef = useRef<Editor>(null);
     const editEditorRef = useRef<Editor>(null);
 
@@ -86,19 +107,48 @@ const ManualList: React.FC = () => {
         fetchManuals();
     }, [query]);
 
-    useEffect(() => {
-        setSearchInput(query);
-    }, [query]);
+    const [activeTab, setActiveTab] = useState<'content' | 'history'>('content');
+    const [versions, setVersions] = useState<ManualVersion[]>([]);
+    const [viewingVersion, setViewingVersion] = useState<ManualVersion | null>(null);
 
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [selectedManual, setSelectedManual] = useState<Manual | null>(null);
-    const [isEditing, setIsEditing] = useState(false);
-    const [isSubmitting, setIsSubmitting] = useState(false);
-    const [editForm, setEditForm] = useState({ title: '', content: '', change_log: '' });
-    const [newManual, setNewManual] = useState({
-        title: '',
-        content: '',
-    });
+    useEffect(() => {
+        if (selectedManual && activeTab === 'history') {
+            fetchVersions();
+        }
+        if (!selectedManual) {
+            setViewingVersion(null);
+            setActiveTab('content');
+        }
+    }, [selectedManual, activeTab]);
+
+    const fetchVersions = async () => {
+        if (!selectedManual) return;
+        try {
+            const response = await api.get(`/manuals/${selectedManual.id}/versions`);
+            setVersions(response.data);
+        } catch (error) {
+            console.error('Failed to fetch versions', error);
+        }
+    };
+
+    const handleRevert = async (versionId: string, major: number, minor: number) => {
+        if (!confirm(`정말로 v${major}.${minor} 버전으로 되돌리시겠습니까?\n현재 내용은 새로운 버전으로 저장됩니다.`)) return;
+
+        try {
+            await api.post(`/manuals/${selectedManual!.id}/revert`, { version_id: versionId });
+            alert('성공적으로 되돌렸습니다.');
+            // Refresh manual and switch to content tab
+            const response = await api.get(`/manuals/${selectedManual!.id}`);
+            setSelectedManual(response.data);
+            setActiveTab('content');
+            // Refresh list
+            const listResponse = await api.get('/manuals', { params: { q: query } });
+            setManuals(listResponse.data.data);
+        } catch (error) {
+            console.error('Failed to revert', error);
+            alert('되돌리기에 실패했습니다.');
+        }
+    };
 
     const handleCreate = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -514,11 +564,167 @@ const ManualList: React.FC = () => {
                                 </div>
                             </div>
 
-                            <div style={{ padding: '20px', backgroundColor: '#111', borderRadius: '8px', border: '1px solid #333' }}>
-                                <ManualContent manualId={selectedManual.id} />
+                            {/* Tabs */}
+                            <div style={{ display: 'flex', borderBottom: '1px solid #333', marginBottom: '16px' }}>
+                                <button
+                                    onClick={() => setActiveTab('content')}
+                                    style={{
+                                        padding: '12px 24px',
+                                        background: 'none',
+                                        border: 'none',
+                                        borderBottom: activeTab === 'content' ? '2px solid #CC8800' : '2px solid transparent',
+                                        color: activeTab === 'content' ? '#CC8800' : '#666',
+                                        cursor: 'pointer',
+                                        fontWeight: activeTab === 'content' ? '600' : '400'
+                                    }}
+                                >
+                                    내용
+                                </button>
+                                <button
+                                    onClick={() => setActiveTab('history')}
+                                    style={{
+                                        padding: '12px 24px',
+                                        background: 'none',
+                                        border: 'none',
+                                        borderBottom: activeTab === 'history' ? '2px solid #CC8800' : '2px solid transparent',
+                                        color: activeTab === 'history' ? '#CC8800' : '#666',
+                                        cursor: 'pointer',
+                                        fontWeight: activeTab === 'history' ? '600' : '400'
+                                    }}
+                                >
+                                    버전 이력
+                                </button>
                             </div>
 
-                            <FileUpload entityType="manual" entityId={selectedManual.id} readOnly={true} />
+                            {activeTab === 'content' ? (
+                                <>
+                                    {viewingVersion ? (
+                                        <div style={{ marginBottom: '16px' }}>
+                                            <div style={{
+                                                padding: '12px 16px',
+                                                backgroundColor: 'rgba(204, 136, 0, 0.1)',
+                                                border: '1px solid rgba(204, 136, 0, 0.3)',
+                                                borderRadius: '6px',
+                                                color: '#CC8800',
+                                                display: 'flex',
+                                                justifyContent: 'space-between',
+                                                alignItems: 'center',
+                                                marginBottom: '16px'
+                                            }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                    <Book style={{ width: '16px', height: '16px' }} />
+                                                    <span>
+                                                        현재 <strong>v{viewingVersion.version_major}.{viewingVersion.version_minor}</strong> (과거 버전) 내용을 보고 있습니다.
+                                                    </span>
+                                                </div>
+                                                <button
+                                                    onClick={() => setViewingVersion(null)}
+                                                    style={{
+                                                        background: 'none',
+                                                        border: 'none',
+                                                        color: '#CC8800',
+                                                        textDecoration: 'underline',
+                                                        cursor: 'pointer',
+                                                        fontSize: '13px'
+                                                    }}
+                                                >
+                                                    최신 버전으로 돌아가기
+                                                </button>
+                                            </div>
+                                            <div style={{ padding: '20px', backgroundColor: '#111', borderRadius: '8px', border: '1px solid #333' }}>
+                                                <div className="markdown-content" style={{ lineHeight: '1.6', color: '#e5e5e5' }}>
+                                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                                        {viewingVersion.content}
+                                                    </ReactMarkdown>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <div style={{ padding: '20px', backgroundColor: '#111', borderRadius: '8px', border: '1px solid #333' }}>
+                                                <ManualContent manualId={selectedManual.id} />
+                                            </div>
+                                            <FileUpload entityType="manual" entityId={selectedManual.id} readOnly={true} />
+                                        </>
+                                    )}
+                                </>
+                            ) : (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                    {versions.length === 0 ? (
+                                        <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>이력이 없습니다.</div>
+                                    ) : (
+                                        versions.map((version) => (
+                                            <div
+                                                key={version.id}
+                                                onClick={() => {
+                                                    setViewingVersion(version);
+                                                    setActiveTab('content');
+                                                }}
+                                                style={{
+                                                    padding: '16px',
+                                                    backgroundColor: '#1a1a1a',
+                                                    border: '1px solid #333',
+                                                    borderRadius: '8px',
+                                                    display: 'flex',
+                                                    justifyContent: 'space-between',
+                                                    alignItems: 'center',
+                                                    cursor: 'pointer',
+                                                    transition: 'background-color 0.2s'
+                                                }}
+                                                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#222'}
+                                                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#1a1a1a'}
+                                            >
+                                                <div>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '4px' }}>
+                                                        <span style={{
+                                                            color: '#CC8800',
+                                                            fontWeight: '600',
+                                                            fontSize: '14px'
+                                                        }}>
+                                                            v{version.version_major}.{version.version_minor}
+                                                        </span>
+                                                        <span style={{
+                                                            fontSize: '12px',
+                                                            padding: '2px 6px',
+                                                            borderRadius: '4px',
+                                                            backgroundColor: version.change_type === 'major' ? 'rgba(255, 68, 68, 0.1)' : 'rgba(204, 136, 0, 0.1)',
+                                                            color: version.change_type === 'major' ? '#ff4444' : '#CC8800',
+                                                            border: version.change_type === 'major' ? '1px solid rgba(255, 68, 68, 0.3)' : '1px solid rgba(204, 136, 0, 0.3)',
+                                                        }}>
+                                                            {version.change_type.toUpperCase()}
+                                                        </span>
+                                                    </div>
+                                                    <p style={{ color: '#e5e5e5', fontSize: '14px', marginBottom: '4px' }}>
+                                                        {version.change_log}
+                                                    </p>
+                                                    <div style={{ fontSize: '12px', color: '#666' }}>
+                                                        {version.created_by.full_name} • {format(new Date(version.created_at), 'yyyy-MM-dd HH:mm')}
+                                                    </div>
+                                                </div>
+                                                {isAdmin && (
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation(); // Prevent triggering row click
+                                                            handleRevert(version.id, version.version_major, version.version_minor);
+                                                        }}
+                                                        style={{
+                                                            padding: '6px 12px',
+                                                            borderRadius: '4px',
+                                                            border: '1px solid #555',
+                                                            backgroundColor: 'transparent',
+                                                            color: '#999',
+                                                            fontSize: '12px',
+                                                            cursor: 'pointer'
+                                                        }}
+                                                    >
+                                                        되돌리기
+                                                    </button>
+                                                )}
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                            )}
 
                             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
                                 {isAdmin && (
@@ -553,16 +759,16 @@ const ManualList: React.FC = () => {
                                 )}
                                 <button
                                     onClick={() => setSelectedManual(null)}
+                                    className="gold-button"
                                     style={{
                                         padding: '0 24px',
                                         height: '44px',
-                                        borderRadius: '6px',
-                                        backgroundColor: 'transparent',
-                                        border: '1px solid #333',
-                                        color: '#999',
-                                        cursor: 'pointer'
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '8px'
                                     }}
                                 >
+                                    <X style={{ width: '14px', height: '14px' }} />
                                     닫기
                                 </button>
                             </div>

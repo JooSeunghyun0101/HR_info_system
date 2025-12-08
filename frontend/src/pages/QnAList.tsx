@@ -5,7 +5,7 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import api from '../lib/api';
 import Modal from '../components/Modal';
 import { useAuthStore } from '../lib/store';
-import { MessageCircle, Calendar, User, Eye, Plus, Search } from 'lucide-react';
+import { MessageCircle, Calendar, User, Eye, Plus, Search, Trash2, Edit2, X } from 'lucide-react';
 import { format } from 'date-fns';
 import FileUpload from '../components/FileUpload';
 
@@ -45,11 +45,18 @@ const QnAList: React.FC = () => {
     const query = searchParams.get('q') || '';
     const [searchInput, setSearchInput] = useState(query);
 
+    const [filters, setFilters] = useState({
+        categoryId: '',
+        tag: '',
+        startDate: '',
+        endDate: ''
+    });
+
     const [newQnA, setNewQnA] = useState({
         question_title: '',
         question_details: '',
         answer: '',
-        answer_basis: '', // Added field
+        answer_basis: '',
         tags: '',
         categoryId: ''
     });
@@ -67,7 +74,14 @@ const QnAList: React.FC = () => {
     const fetchQnas = async () => {
         try {
             setLoading(true);
-            const response = await api.get('/qna', { params: { q: query } });
+            const params = {
+                q: query,
+                category: filters.categoryId || undefined,
+                tag: filters.tag || undefined,
+                start_date: filters.startDate || undefined,
+                end_date: filters.endDate || undefined
+            };
+            const response = await api.get('/qna', { params });
             setQnas(response.data.data);
         } catch (error) {
             console.error('Failed to fetch Q&As', error);
@@ -211,6 +225,53 @@ const QnAList: React.FC = () => {
                             }}
                         />
                     </div>
+                </div>
+
+                {/* Filters */}
+                <div style={{ marginBottom: '24px', display: 'flex', gap: '12px', flexWrap: 'wrap' }} className="fade-in-delay-1">
+                    <select
+                        className="terminal-input"
+                        style={{ width: '150px', height: '42px' }}
+                        value={filters.categoryId}
+                        onChange={(e) => setFilters(prev => ({ ...prev, categoryId: e.target.value }))}
+                    >
+                        <option value="">모든 카테고리</option>
+                        {categories.map(cat => (
+                            <option key={cat.id} value={cat.id}>{cat.name}</option>
+                        ))}
+                    </select>
+                    <input
+                        type="text"
+                        className="terminal-input"
+                        style={{ width: '150px', height: '42px' }}
+                        placeholder="태그 입력"
+                        value={filters.tag}
+                        onChange={(e) => setFilters(prev => ({ ...prev, tag: e.target.value }))}
+                    />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#666' }}>
+                        <input
+                            type="date"
+                            className="terminal-input"
+                            style={{ width: '140px', height: '42px' }}
+                            value={filters.startDate}
+                            onChange={(e) => setFilters(prev => ({ ...prev, startDate: e.target.value }))}
+                        />
+                        <span>~</span>
+                        <input
+                            type="date"
+                            className="terminal-input"
+                            style={{ width: '140px', height: '42px' }}
+                            value={filters.endDate}
+                            onChange={(e) => setFilters(prev => ({ ...prev, endDate: e.target.value }))}
+                        />
+                    </div>
+                    <button
+                        onClick={fetchQnas}
+                        className="gold-button"
+                        style={{ height: '42px', padding: '0 20px' }}
+                    >
+                        필터 적용
+                    </button>
                 </div>
 
                 {/* 리스트 */}
@@ -424,7 +485,7 @@ const QnAList: React.FC = () => {
 
                         {/* Question Details */}
                         <div>
-                            <h3 style={{ fontSize: '14px', color: '#999', marginBottom: '8px' }}>질문 내용</h3>
+                            <h3 style={{ fontSize: '14px', color: '#FFB800', marginBottom: '8px' }}>질문 내용</h3>
                             <p style={{ color: '#ccc', fontSize: '15px', lineHeight: '1.7' }}>
                                 {selectedQnA.question_details}
                             </p>
@@ -433,7 +494,7 @@ const QnAList: React.FC = () => {
                         {/* Answer */}
                         {selectedQnA.answer && (
                             <div>
-                                <h3 style={{ fontSize: '14px', color: '#999', marginBottom: '8px' }}>답변</h3>
+                                <h3 style={{ fontSize: '14px', color: '#FFB800', marginBottom: '8px' }}>답변</h3>
                                 <p style={{ color: '#ccc', fontSize: '15px', lineHeight: '1.7' }}>
                                     {selectedQnA.answer}
                                 </p>
@@ -443,7 +504,7 @@ const QnAList: React.FC = () => {
                         {/* Answer Basis */}
                         {selectedQnA.answer_basis && (
                             <div>
-                                <h3 style={{ fontSize: '14px', color: '#999', marginBottom: '8px' }}>답변 근거</h3>
+                                <h3 style={{ fontSize: '14px', color: '#FFB800', marginBottom: '8px' }}>답변 근거</h3>
                                 <p style={{ color: '#ccc', fontSize: '15px', lineHeight: '1.7', fontStyle: 'italic' }}>
                                     {selectedQnA.answer_basis}
                                 </p>
@@ -498,23 +559,27 @@ const QnAList: React.FC = () => {
                                             backgroundColor: '#331111',
                                             border: '1px solid #552222',
                                             color: '#ff4444',
-                                            cursor: 'pointer'
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '8px'
                                         }}
                                     >
+                                        <Trash2 style={{ width: '14px', height: '14px' }} />
                                         삭제
                                     </button>
                                     <button
                                         onClick={openEditModal}
+                                        className="gold-button"
                                         style={{
                                             padding: '0 24px',
                                             height: '44px',
-                                            borderRadius: '6px',
-                                            backgroundColor: '#112211',
-                                            border: '1px solid #224422',
-                                            color: '#44ff44',
-                                            cursor: 'pointer'
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '8px'
                                         }}
                                     >
+                                        <Edit2 style={{ width: '14px', height: '14px' }} />
                                         수정
                                     </button>
                                 </>
@@ -522,8 +587,15 @@ const QnAList: React.FC = () => {
                             <button
                                 onClick={() => setSelectedQnA(null)}
                                 className="gold-button"
-                                style={{ padding: '0 24px', height: '44px' }}
+                                style={{
+                                    padding: '0 24px',
+                                    height: '44px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '8px'
+                                }}
                             >
+                                <X style={{ width: '14px', height: '14px' }} />
                                 닫기
                             </button>
                         </div>

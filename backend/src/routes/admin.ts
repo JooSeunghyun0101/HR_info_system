@@ -329,6 +329,32 @@ router.post('/tags/merge', authenticateToken, requireAdmin, async (req, res) => 
     }
 });
 
+// Update tag
+router.patch('/tags/:id', authenticateToken, requireAdmin, async (req, res) => {
+    const { id } = req.params;
+    if (!id) return res.status(400).json({ message: 'Tag ID is required' });
+    const { name } = req.body;
+
+    if (!name) {
+        return res.status(400).json({ message: 'Tag name is required' });
+    }
+
+    try {
+        const tag = await prisma.tag.update({
+            where: { id },
+            data: { name }
+        });
+
+        res.json(tag);
+    } catch (error: any) {
+        if (error.code === 'P2002') {
+            return res.status(400).json({ message: 'Tag name already exists' });
+        }
+        console.error(error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+});
+
 // Delete tag
 router.delete('/tags/:id', authenticateToken, requireAdmin, async (req, res) => {
     const { id } = req.params;
@@ -402,6 +428,128 @@ router.get('/stats', authenticateToken, requireAdmin, async (req, res) => {
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: 'Internal server error' });
+    }
+});
+
+// ========================================
+// Data Export
+// ========================================
+
+// Helper to escape CSV fields
+const escapeCsvField = (field: any): string => {
+    if (field === null || field === undefined) return '';
+    const stringField = String(field);
+    if (stringField.includes(',') || stringField.includes('"') || stringField.includes('\n') || stringField.includes('\r')) {
+        return `"${stringField.replace(/"/g, '""')}"`;
+    }
+    return stringField;
+};
+
+
+
+// Export Q&A
+router.get('/export/qna', authenticateToken, requireAdmin, async (req, res) => {
+    try {
+        const qnaEntries = await prisma.qnAEntry.findMany({
+            where: { is_deleted: false },
+            include: {
+                categories: {
+                    include: {
+                        category: true
+                    }
+                },
+                tags: {
+                    include: {
+                        tag: true
+                    }
+                },
+                created_by: {
+                    select: { full_name: true, email: true }
+                }
+            },
+            orderBy: { created_at: 'desc' }
+        });
+
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        res.setHeader('Content-Disposition', 'attachment; filename="qna_export.csv"');
+
+        // BOM for Excel UTF-8 recognition
+        res.write('\uFEFF');
+
+        // Headers
+        res.write('ID,Title,Categories,Tags,Question,Answer,Answer Basis,Created By,Created At\n');
+
+        for (const entry of qnaEntries) {
+            const tags = entry.tags.map(t => t.tag.name).join(', ');
+            const categories = entry.categories.map(c => c.category.name).join(', ');
+            const row = [
+                entry.id,
+                entry.question_title,
+                categories,
+                tags,
+                entry.question_details,
+                entry.answer,
+                entry.answer_basis,
+                `${entry.created_by.full_name} (${entry.created_by.email})`,
+                entry.created_at.toISOString()
+            ].map(escapeCsvField).join(',');
+
+            res.write(row + '\n');
+        }
+
+        res.end();
+    } catch (error) {
+        console.error('Export Q&A Error:', error);
+        if (!res.headersSent) {
+            res.status(500).json({ message: 'Internal server error' });
+        } else {
+            res.end();
+        }
+    }
+});
+
+// Export Manuals
+router.get('/export/manuals', authenticateToken, requireAdmin, async (req, res) => {
+    try {
+        const manuals = await prisma.manual.findMany({
+            where: { is_deleted: false },
+            include: {
+                created_by: {
+                    select: { full_name: true, email: true }
+                }
+            },
+            orderBy: { created_at: 'desc' }
+        });
+
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        res.setHeader('Content-Disposition', 'attachment; filename="manuals_export.csv"');
+
+        // BOM for Excel UTF-8 recognition
+        res.write('\uFEFF');
+
+        // Headers
+        res.write('ID,Title,Content,Created By,Created At\n');
+
+        for (const manual of manuals) {
+            const row = [
+                manual.id,
+                manual.title,
+                manual.content,
+                `${manual.created_by.full_name} (${manual.created_by.email})`,
+                manual.created_at.toISOString()
+            ].map(escapeCsvField).join(',');
+
+            res.write(row + '\n');
+        }
+
+        res.end();
+    } catch (error) {
+        console.error('Export Manuals Error:', error);
+        if (!res.headersSent) {
+            res.status(500).json({ message: 'Internal server error' });
+        } else {
+            res.end();
+        }
     }
 });
 
