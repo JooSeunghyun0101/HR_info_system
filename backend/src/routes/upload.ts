@@ -4,7 +4,7 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import { PrismaClient } from '@prisma/client';
-import { authenticateToken } from '../middleware/auth';
+import { authenticateToken } from '../middleware/auth.js';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -69,6 +69,11 @@ router.post('/', authenticateToken, upload.single('file'), async (req, res) => {
 router.get('/:entityType/:entityId', authenticateToken, async (req, res) => {
     try {
         const { entityType, entityId } = req.params;
+
+        if (!entityType || !entityId) {
+            return res.status(400).json({ message: 'Missing required parameters' });
+        }
+
         const attachments = await prisma.attachment.findMany({
             where: {
                 entity_type: entityType,
@@ -89,6 +94,11 @@ router.get('/:entityType/:entityId', authenticateToken, async (req, res) => {
 router.get('/download/:id', authenticateToken, async (req, res) => {
     try {
         const { id } = req.params;
+
+        if (!id) {
+            return res.status(400).json({ message: 'Missing file ID' });
+        }
+
         const attachment = await prisma.attachment.findUnique({
             where: { id }
         });
@@ -113,6 +123,11 @@ router.get('/download/:id', authenticateToken, async (req, res) => {
 router.delete('/:id', authenticateToken, async (req, res) => {
     try {
         const { id } = req.params;
+
+        if (!id) {
+            return res.status(400).json({ message: 'Missing file ID' });
+        }
+
         const attachment = await prisma.attachment.findUnique({
             where: { id }
         });

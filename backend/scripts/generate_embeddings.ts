@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import { PrismaClient } from '@prisma/client';
-import { generateEmbedding } from './src/lib/openai.js';
+import { generateEmbedding } from '../src/lib/openai.js';
 
 const prisma = new PrismaClient();
 
