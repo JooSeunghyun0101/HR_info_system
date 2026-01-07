@@ -26,6 +26,10 @@ app.get('/', (req, res) => {
   res.send('Welcome to HR Insight Platform API');
 });
 
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
 app.listen(port, () => {
   console.log(`Server is running on port ${port}`);
 });
