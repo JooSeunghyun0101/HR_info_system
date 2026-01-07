@@ -112,7 +112,9 @@ router.get('/download/:id', authenticateToken, async (req, res) => {
             return res.status(404).json({ message: 'File not found on server' });
         }
 
-        res.download(filePath, attachment.file_name);
+        const encodedName = encodeURIComponent(attachment.file_name);
+        res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodedName}`);
+        res.sendFile(filePath);
     } catch (error) {
         console.error('Download failed', error);
         res.status(500).json({ message: 'Download failed' });
