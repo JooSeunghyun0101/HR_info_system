@@ -42,12 +42,15 @@ router.post('/', authenticateToken, upload.single('file'), async (req, res) => {
             return res.status(400).json({ message: 'Entity type and ID are required' });
         }
 
+        // Fix Korean filename encoding: multer sends Latin-1 encoded filenames
+        const decodedFileName = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
+
         const attachment = await prisma.attachment.create({
             data: {
                 entity_type: entityType,
                 entity_id: entityId,
-                file_name: req.file.originalname,
-                file_type: path.extname(req.file.originalname).substring(1), // e.g., 'pdf'
+                file_name: decodedFileName,
+                file_type: path.extname(decodedFileName).substring(1), // e.g., 'pdf'
                 file_size: req.file.size,
                 storage_path: req.file.path,
                 mime_type: req.file.mimetype,
@@ -65,7 +68,61 @@ router.post('/', authenticateToken, upload.single('file'), async (req, res) => {
     }
 });
 
-// Get attachments for an entity
+// IMPORTANT: Specific routes MUST come BEFORE generic pattern routes!
+// Download file - MUST be before /:entityType/:entityId
+router.get('/download/:id', authenticateToken, async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        if (!id) {
+            return res.status(400).json({ message: 'Missing file ID' });
+        }
+
+        const attachment = await prisma.attachment.findUnique({
+            where: { id }
+        });
+
+        if (!attachment) {
+            return res.status(404).json({ message: 'Attachment not found' });
+        }
+
+        // Use absolute path from process.cwd() for reliable file resolution
+        const filePath = path.isAbsolute(attachment.storage_path)
+            ? attachment.storage_path
+            : path.join(process.cwd(), attachment.storage_path);
+
+        console.log('[Download Debug] storage_path:', attachment.storage_path);
+        console.log('[Download Debug] resolved filePath:', filePath);
+
+        if (!fs.existsSync(filePath)) {
+            console.error('[Download Debug] File not found:', filePath);
+            return res.status(404).json({ message: 'File not found on server' });
+        }
+
+        const fileBuffer = fs.readFileSync(filePath);
+        console.log('[Download Debug] Read file buffer size:', fileBuffer.length, 'bytes');
+
+        const encodedName = encodeURIComponent(attachment.file_name);
+
+        // Set headers and send file
+        res.writeHead(200, {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0',
+            'Content-Type': attachment.mime_type || 'application/octet-stream',
+            'Content-Disposition': `attachment; filename*=UTF-8''${encodedName}`,
+            'Content-Length': fileBuffer.length
+        });
+
+        res.end(fileBuffer);
+        console.log('[Download Debug] File sent successfully, bytes:', fileBuffer.length);
+    } catch (error) {
+        console.error('Download failed', error);
+        res.status(500).json({ message: 'Download failed' });
+    }
+});
+
+// Get attachments for an entity - Generic pattern comes AFTER specific routes
 router.get('/:entityType/:entityId', authenticateToken, async (req, res) => {
     try {
         const { entityType, entityId } = req.params;
@@ -87,37 +144,6 @@ router.get('/:entityType/:entityId', authenticateToken, async (req, res) => {
     } catch (error) {
         console.error('Failed to fetch attachments', error);
         res.status(500).json({ message: 'Failed to fetch attachments' });
-    }
-});
-
-// Download file
-router.get('/download/:id', authenticateToken, async (req, res) => {
-    try {
-        const { id } = req.params;
-
-        if (!id) {
-            return res.status(400).json({ message: 'Missing file ID' });
-        }
-
-        const attachment = await prisma.attachment.findUnique({
-            where: { id }
-        });
-
-        if (!attachment) {
-            return res.status(404).json({ message: 'Attachment not found' });
-        }
-
-        const filePath = path.resolve(attachment.storage_path);
-        if (!fs.existsSync(filePath)) {
-            return res.status(404).json({ message: 'File not found on server' });
-        }
-
-        const encodedName = encodeURIComponent(attachment.file_name);
-        res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodedName}`);
-        res.sendFile(filePath);
-    } catch (error) {
-        console.error('Download failed', error);
-        res.status(500).json({ message: 'Download failed' });
     }
 });
 

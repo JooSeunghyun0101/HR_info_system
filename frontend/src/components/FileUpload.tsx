@@ -76,16 +76,44 @@ const FileUpload: React.FC<FileUploadProps> = ({ entityType, entityId, readOnly 
 
     const handleDownload = async (id: string, fileName: string) => {
         try {
-            const response = await api.get(`/upload/download/${id}`, {
-                responseType: 'blob'
+            // Use native fetch instead of axios for more reliable binary downloads
+            const token = sessionStorage.getItem('auth-storage');
+            let authToken = '';
+
+            if (token) {
+                try {
+                    const parsed = JSON.parse(token);
+                    authToken = parsed?.state?.token || '';
+                } catch {
+                    authToken = '';
+                }
+            }
+
+            const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+            const response = await fetch(`${baseUrl}/upload/download/${id}`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${authToken}`
+                }
             });
-            const url = window.URL.createObjectURL(new Blob([response.data]));
+
+            if (!response.ok) {
+                throw new Error(`Download failed: ${response.status}`);
+            }
+
+            const blob = await response.blob();
+            console.log('[Download] Received blob size:', blob.size, 'bytes');
+
+            const url = window.URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = url;
             link.setAttribute('download', fileName);
             document.body.appendChild(link);
             link.click();
             link.remove();
+
+            // Clean up the URL object
+            window.URL.revokeObjectURL(url);
         } catch (error) {
             console.error('Download failed', error);
             alert('다운로드에 실패했습니다.');
