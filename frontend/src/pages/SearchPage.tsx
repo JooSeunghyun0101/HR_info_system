@@ -291,6 +291,7 @@ const SearchPage: React.FC = () => {
                 isOpen={!!selectedItem}
                 onClose={() => setSelectedItem(null)}
                 title={selectedItem?.type === 'qna' ? '질문 상세' : '매뉴얼 상세'}
+                maxWidth="1000px"
             >
                 {selectedItem?.type === 'qna' && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>

@@ -31,6 +31,9 @@ model User {
   manual_versions   ManualVersion[]
   attachments       Attachment[]
   audit_logs        AuditLog[]
+  comments_created  Comment[]  @relation("CommentCreatedBy")
+  comments_updated  Comment[]  @relation("CommentUpdatedBy")
+  comments_deleted  Comment[]  @relation("CommentDeletedBy")
 
   @@map("users")
 }
@@ -199,4 +202,31 @@ model AuditLog {
   @@index([entity_type, entity_id])
   @@index([user_id, created_at])
   @@map("audit_logs")
+}
+
+model Comment {
+  id                String    @id @default(uuid())
+  content           String
+  entity_type       String    // 'qna' | 'manual'
+  entity_id         String
+  parent_id         String?   // For nested replies
+
+  created_by_id     String
+  created_at        DateTime  @default(now())
+  updated_by_id     String?
+  updated_at        DateTime  @updatedAt
+  is_deleted        Boolean   @default(false)
+  deleted_at        DateTime?
+  deleted_by_id     String?
+
+  created_by        User      @relation("CommentCreatedBy", fields: [created_by_id], references: [id])
+  updated_by        User?     @relation("CommentUpdatedBy", fields: [updated_by_id], references: [id])
+  deleted_by        User?     @relation("CommentDeletedBy", fields: [deleted_by_id], references: [id])
+
+  parent            Comment?  @relation("CommentReplies", fields: [parent_id], references: [id], onDelete: Cascade)
+  replies           Comment[] @relation("CommentReplies")
+
+  @@index([entity_type, entity_id])
+  @@index([parent_id])
+  @@map("comments")
 }

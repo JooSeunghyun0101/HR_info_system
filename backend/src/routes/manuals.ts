@@ -159,8 +159,28 @@ router.get('/', authenticateToken, async (req, res) => {
             manuals = data;
         }
 
+        // Fetch comment counts
+        const manualIds = manuals.map(m => m.id);
+        const commentCounts = await prisma.comment.groupBy({
+            by: ['entity_id'],
+            where: {
+                entity_type: 'manual',
+                entity_id: { in: manualIds },
+                is_deleted: false
+            },
+            _count: {
+                id: true
+            }
+        });
+
+        const countMap = new Map(commentCounts.map(c => [c.entity_id, c._count.id]));
+        const manualsWithCounts = manuals.map(m => ({
+            ...m,
+            _count: { comments: countMap.get(m.id) || 0 }
+        }));
+
         res.json({
-            data: manuals,
+            data: manualsWithCounts,
             meta: {
                 total,
                 page: Number(page),

@@ -129,6 +129,27 @@ router.post('/users', authenticateToken, requireAdmin, async (req, res) => {
     }
 });
 
+// Reset user password (Admin)
+router.post('/users/:id/reset-password', authenticateToken, requireAdmin, async (req, res) => {
+    const { id } = req.params;
+    if (!id) return res.status(400).json({ message: 'User ID is required' });
+
+    try {
+        // Reset password to "1234"
+        const hashedPassword = await bcrypt.hash('1234', 10);
+
+        await prisma.user.update({
+            where: { id },
+            data: { password_hash: hashedPassword }
+        });
+
+        res.json({ message: 'Password reset to default (1234)' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+});
+
 // ========================================
 // Category Management
 // ========================================

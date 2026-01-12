@@ -1,3 +1,4 @@
+import './polyfills.js';
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
@@ -8,6 +9,7 @@ import manualRoutes from './routes/manuals.js';
 import categoryRoutes from './routes/categories.js';
 import adminRoutes from './routes/admin.js';
 import uploadRoutes from './routes/upload.js';
+import commentsRoutes from './routes/comments.js';
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -21,6 +23,7 @@ app.use('/api/manuals', manualRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api/comments', commentsRoutes);
 
 app.get('/', (req, res) => {
   res.send('Welcome to HR Insight Platform API');
@@ -31,5 +34,5 @@ app.get('/api/health', (req, res) => {
 });
 
 app.listen(port, () => {
-  console.log(`Server is running on port ${port}`);
+  console.log(`Server is running on port ${port} (v2 - debug)`);
 });

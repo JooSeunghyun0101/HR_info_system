@@ -182,8 +182,28 @@ router.get('/', authenticateToken, async (req, res) => {
             qnas = data;
         }
 
+        // Fetch comment counts
+        const qnaIds = qnas.map(q => q.id);
+        const commentCounts = await prisma.comment.groupBy({
+            by: ['entity_id'],
+            where: {
+                entity_type: 'qna',
+                entity_id: { in: qnaIds },
+                is_deleted: false
+            },
+            _count: {
+                id: true
+            }
+        });
+
+        const countMap = new Map(commentCounts.map(c => [c.entity_id, c._count.id]));
+        const qnasWithCounts = qnas.map(q => ({
+            ...q,
+            _count: { comments: countMap.get(q.id) || 0 }
+        }));
+
         res.json({
-            data: qnas,
+            data: qnasWithCounts,
             meta: {
                 total,
                 page: Number(page),

@@ -8,6 +8,7 @@ import { useAuthStore } from '../lib/store';
 import { MessageCircle, Calendar, User, Eye, Plus, Search, Trash2, Edit2, X } from 'lucide-react';
 import { format } from 'date-fns';
 import FileUpload from '../components/FileUpload';
+import CommentSection from '../components/Comments/CommentSection';
 
 interface QnA {
     id: string;
@@ -22,6 +23,7 @@ interface QnA {
     updated_by?: { full_name: string }; // Added field
     categories: { category: { id: string; name: string; color: string } }[];
     tags: { tag: { name: string } }[];
+    _count: { comments: number };
 }
 
 interface Category {
@@ -338,6 +340,12 @@ const QnAList: React.FC = () => {
                                                 <Calendar style={{ width: '14px', height: '14px' }} />
                                                 <span>{format(new Date(qna.created_at), 'yyyy-MM-dd')}</span>
                                             </div>
+                                            {qna._count?.comments > 0 && (
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#FFB800' }}>
+                                                    <MessageCircle style={{ width: '14px', height: '14px' }} />
+                                                    <span>{qna._count.comments}</span>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 </div>
@@ -348,7 +356,7 @@ const QnAList: React.FC = () => {
             </div>
 
             {/* Create/Edit Modal */}
-            <Modal isOpen={isModalOpen} onClose={() => { setIsModalOpen(false); setIsEditing(false); }} title={isEditing ? "질문 수정" : "새 질문 등록"}>
+            <Modal isOpen={isModalOpen} onClose={() => { setIsModalOpen(false); setIsEditing(false); }} title={isEditing ? "질문 수정" : "새 질문 등록"} maxWidth="800px">
                 <form onSubmit={handleCreate} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                     <div>
                         <label style={{ display: 'block', fontSize: '13px', color: '#999', marginBottom: '8px' }}>카테고리</label>
@@ -456,7 +464,7 @@ const QnAList: React.FC = () => {
             </Modal>
 
             {/* Detail Modal - Hide when Edit Modal is open to prevent overlap */}
-            <Modal isOpen={!!selectedQnA && !isModalOpen} onClose={() => setSelectedQnA(null)} title="질문 상세">
+            <Modal isOpen={!!selectedQnA && !isModalOpen} onClose={() => setSelectedQnA(null)} title="질문 상세" maxWidth="800px">
                 {selectedQnA && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
                         {/* Title */}
@@ -513,6 +521,9 @@ const QnAList: React.FC = () => {
 
                         {/* Attachments */}
                         <FileUpload entityType="qna" entityId={selectedQnA.id} readOnly={true} />
+
+                        {/* Comments */}
+                        <CommentSection entityType="qna" entityId={selectedQnA.id} />
 
                         {/* Tags */}
                         {selectedQnA.tags && selectedQnA.tags.length > 0 && (

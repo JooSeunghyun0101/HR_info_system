@@ -8,7 +8,8 @@
       "Bash(git commit -m \"$\\(cat <<''EOF''\nFix: Configure deployment for Render and Vercel\n\n- Add build scripts to backend package.json\n- Configure TypeScript to exclude scripts folder\n- Add health check endpoint for Render\n- Configure API URL with environment variable\n- Add .env.example for frontend\n- Create render.yaml for deployment configuration\n- Add comprehensive DEPLOYMENT.md guide\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
       "Bash(git push:*)",
       "Bash(git commit:*)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(npx prisma:*)"
     ],
     "deny": [],
     "ask": []

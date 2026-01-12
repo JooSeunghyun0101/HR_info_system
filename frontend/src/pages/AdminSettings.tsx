@@ -136,6 +136,16 @@ const UserManagement: React.FC = () => {
         }
     };
 
+    const handlePasswordReset = async (userId: string, userName: string) => {
+        if (!confirm(`${userName}님의 비밀번호를 '1234'로 초기화하시겠습니까?`)) return;
+        try {
+            await api.post(`/admin/users/${userId}/reset-password`);
+            alert('비밀번호가 초기화되었습니다.');
+        } catch (error) {
+            alert('비밀번호 초기화에 실패했습니다.');
+        }
+    };
+
     const handleCreateUser = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
@@ -289,6 +299,21 @@ const UserManagement: React.FC = () => {
                                         }}
                                     >
                                         {user.is_active ? '비활성화' : '활성화'}
+                                    </button>
+                                    <button
+                                        onClick={() => handlePasswordReset(user.id, user.full_name)}
+                                        style={{
+                                            padding: '6px 12px',
+                                            background: 'rgba(255, 184, 0, 0.1)',
+                                            border: '1px solid #FFB800',
+                                            color: '#FFB800',
+                                            borderRadius: '4px',
+                                            cursor: 'pointer',
+                                            fontSize: '12px',
+                                            marginLeft: '8px'
+                                        }}
+                                    >
+                                        PW 초기화
                                     </button>
                                 </td>
                             </tr>

@@ -4,13 +4,14 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import api from '../lib/api';
-import { Calendar, User, Book, Plus, Search, FileText, Edit2, Trash2, X } from 'lucide-react';
+import { Calendar, User, Book, Plus, Search, FileText, Edit2, Trash2, X, MessageCircle } from 'lucide-react';
 import { format } from 'date-fns';
 import Modal from '../components/Modal';
 import { useAuthStore } from '../lib/store';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import FileUpload from '../components/FileUpload';
+import CommentSection from '../components/Comments/CommentSection';
 
 import '@toast-ui/editor/dist/toastui-editor.css';
 import '@toast-ui/editor/dist/theme/toastui-editor-dark.css';
@@ -22,7 +23,8 @@ interface Manual {
     version_major: number;
     version_minor: number;
     updated_at: string;
-    updated_by: { full_name: string };
+    updated_by?: { full_name: string };
+    _count: { comments: number };
     created_at: string;
     created_by: { full_name: string };
 }
@@ -376,10 +378,16 @@ const ManualList: React.FC = () => {
                                                 <User style={{ width: '14px', height: '14px' }} />
                                                 <span>최종 수정: {manual.updated_by?.full_name || 'Unknown'}</span>
                                             </div>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#666' }}>
                                                 <Calendar style={{ width: '14px', height: '14px' }} />
-                                                <span>{format(new Date(manual.updated_at), 'yyyy-MM-dd HH:mm')}</span>
+                                                <span>{format(new Date(manual.updated_at), 'yyyy-MM-dd')}</span>
                                             </div>
+                                            {manual._count?.comments > 0 && (
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#FFB800' }}>
+                                                    <MessageCircle style={{ width: '14px', height: '14px' }} />
+                                                    <span>{manual._count.comments}</span>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 </div>
@@ -390,7 +398,7 @@ const ManualList: React.FC = () => {
             </div>
 
             {/* Create Modal */}
-            <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="새 매뉴얼 생성">
+            <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="새 매뉴얼 생성" maxWidth="1000px">
                 <form onSubmit={handleCreate} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                     <div>
                         <label style={{ display: 'block', fontSize: '13px', color: '#999', marginBottom: '8px' }}>매뉴얼 제목</label>
@@ -457,7 +465,7 @@ const ManualList: React.FC = () => {
             </Modal>
 
             {/* Detail Modal */}
-            <Modal isOpen={!!selectedManual} onClose={() => { setSelectedManual(null); setIsEditing(false); }} title={isEditing ? "매뉴얼 수정" : "매뉴얼 상세"}>
+            <Modal isOpen={!!selectedManual} onClose={() => { setSelectedManual(null); setIsEditing(false); }} title={isEditing ? "매뉴얼 수정" : "매뉴얼 상세"} maxWidth="1000px">
                 {selectedManual && (
                     isEditing ? (
                         <form onSubmit={handleUpdate} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -645,6 +653,7 @@ const ManualList: React.FC = () => {
                                                 <ManualContent manualId={selectedManual.id} />
                                             </div>
                                             <FileUpload entityType="manual" entityId={selectedManual.id} readOnly={true} />
+                                            <CommentSection entityType="manual" entityId={selectedManual.id} />
                                         </>
                                     )}
                                 </>

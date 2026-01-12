@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../lib/store';
-import { LogOut, Search, Book, MessageCircle, User, Menu, X, Settings } from 'lucide-react';
+import { LogOut, Search, Book, MessageCircle, User, Menu, X, Settings, Lock } from 'lucide-react';
+import api from '../lib/api';
 import ParticleBackground from './ParticleBackground';
 
 const Layout: React.FC = () => {
@@ -9,6 +10,27 @@ const Layout: React.FC = () => {
     const navigate = useNavigate();
     const location = useLocation();
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+    const [showPasswordModal, setShowPasswordModal] = useState(false);
+    const [passwordForm, setPasswordForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
+
+    const handleChangePassword = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+            alert('새 비밀번호가 일치하지 않습니다.');
+            return;
+        }
+
+        try {
+            await api.post('/auth/change-password', {
+                currentPassword: passwordForm.currentPassword,
+                newPassword: passwordForm.newPassword
+            });
+            alert('비밀번호가 변경되었습니다. 다시 로그인해주세요.');
+            handleLogout();
+        } catch (error: any) {
+            alert(error.response?.data?.message || '비밀번호 변경에 실패했습니다.');
+        }
+    };
 
     const handleLogout = () => {
         logout();
@@ -97,11 +119,25 @@ const Layout: React.FC = () => {
                                         borderRadius: '6px',
                                         backgroundColor: '#2a2a2a'
                                     }}>
-                                        <User style={{ width: '14px', height: '14px', color: '#999' }} />
                                         <span style={{ fontSize: '14px', color: '#e5e5e5' }}>
                                             {user.full_name}
                                         </span>
                                     </div>
+                                    <button
+                                        onClick={() => setShowPasswordModal(true)}
+                                        style={{
+                                            padding: '6px',
+                                            borderRadius: '6px',
+                                            color: '#999',
+                                            backgroundColor: 'transparent',
+                                            border: 'none',
+                                            cursor: 'pointer',
+                                            transition: 'all 0.2s'
+                                        }}
+                                        title="비밀번호 변경"
+                                    >
+                                        <Lock style={{ width: '18px', height: '18px' }} />
+                                    </button>
                                     <button
                                         onClick={handleLogout}
                                         style={{
@@ -234,6 +270,74 @@ const Layout: React.FC = () => {
                     </div>
                 </div>
             </footer>
+
+            {/* Password Change Modal */}
+            {showPasswordModal && (
+                <div style={{
+                    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                    backgroundColor: 'rgba(0,0,0,0.7)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    zIndex: 1000
+                }}>
+                    <div className="terminal-card" style={{ width: '400px', padding: '24px' }}>
+                        <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#CC8800', marginBottom: '20px' }}>비밀번호 변경</h3>
+                        <form onSubmit={handleChangePassword}>
+                            <div style={{ marginBottom: '16px' }}>
+                                <label style={{ display: 'block', color: '#999', marginBottom: '8px', fontSize: '14px' }}>현재 비밀번호</label>
+                                <input
+                                    type="password"
+                                    className="terminal-input"
+                                    style={{ width: '100%' }}
+                                    required
+                                    value={passwordForm.currentPassword}
+                                    onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
+                                />
+                            </div>
+                            <div style={{ marginBottom: '16px' }}>
+                                <label style={{ display: 'block', color: '#999', marginBottom: '8px', fontSize: '14px' }}>새 비밀번호</label>
+                                <input
+                                    type="password"
+                                    className="terminal-input"
+                                    style={{ width: '100%' }}
+                                    required
+                                    value={passwordForm.newPassword}
+                                    onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
+                                />
+                            </div>
+                            <div style={{ marginBottom: '24px' }}>
+                                <label style={{ display: 'block', color: '#999', marginBottom: '8px', fontSize: '14px' }}>새 비밀번호 확인</label>
+                                <input
+                                    type="password"
+                                    className="terminal-input"
+                                    style={{ width: '100%' }}
+                                    required
+                                    value={passwordForm.confirmPassword}
+                                    onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
+                                />
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                                <button
+                                    type="button"
+                                    onClick={() => { setShowPasswordModal(false); setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' }); }}
+                                    style={{
+                                        padding: '8px 16px',
+                                        background: 'transparent',
+                                        border: '1px solid #666',
+                                        color: '#999',
+                                        borderRadius: '4px',
+                                        cursor: 'pointer'
+                                    }}
+                                >
+                                    취소
+                                </button>
+                                <button type="submit" className="gold-button" style={{ padding: '8px 16px' }}>
+                                    변경하기
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

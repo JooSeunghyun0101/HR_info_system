@@ -51,7 +51,52 @@ router.post('/login', async (req, res) => {
             }
         });
     } catch (error) {
+        console.error('Login Error Details:', error);
+        res.status(500).json({ message: 'Internal server error', error: String(error) });
+    }
+});
+
+// Change Password
+router.post('/change-password', async (req, res) => {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+
+    if (!token) return res.sendStatus(401);
+
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+        return res.status(400).json({ message: 'Missing required fields' });
+    }
+
+    try {
+        const decoded: any = jwt.verify(token, JWT_SECRET);
+        const userId = decoded.id;
+
+        const user = await prisma.user.findUnique({ where: { id: userId } });
+
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        const validPassword = await bcrypt.compare(currentPassword, user.password_hash);
+        if (!validPassword) {
+            return res.status(400).json({ message: 'Incorrect current password' });
+        }
+
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+        await prisma.user.update({
+            where: { id: userId },
+            data: { password_hash: hashedPassword }
+        });
+
+        res.json({ message: 'Password updated successfully' });
+    } catch (error) {
         console.error(error);
+        if (error instanceof jwt.JsonWebTokenError) {
+            return res.sendStatus(403);
+        }
         res.status(500).json({ message: 'Internal server error' });
     }
 });
